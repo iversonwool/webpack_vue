@@ -10,6 +10,10 @@ const CopyPlugin = require("copy-webpack-plugin");
 const {VueLoaderPlugin} = require("vue-loader");
 const webpack = require('webpack')
 
+const AutoImport = require('unplugin-auto-import/webpack')
+const Components = require('unplugin-vue-components/webpack')
+const { ElementPlusResolver } = require('unplugin-vue-components/resolvers')
+
 const isProduction = process.env.NODE_ENV === 'production'
 
 const getStyleLoaders = (preProcessor) => {
@@ -26,7 +30,12 @@ const getStyleLoaders = (preProcessor) => {
         },
       },
     },
-    preProcessor,
+    preProcessor && {
+      loader: 'sass-loader',
+      options: preProcessor === "sass-loader" ? {
+        additionalData: `@use "@/styles/element/index.scss" as *;`,
+      } : {}
+    },
   ].filter(Boolean);
 };
 
@@ -130,7 +139,15 @@ module.exports = {
     new webpack.DefinePlugin({
       __VUE_OPTIONS_API__: true,
       __VUE_PROD_DEVTOOLS__: false
-    })
+    }),
+    AutoImport({
+      resolvers: [ElementPlusResolver()],
+    }),
+    Components({
+      resolvers: [ElementPlusResolver({
+        importStyle: "sass"
+      })],
+    }),
   ],
   optimization: {
     minimize: isProduction,
@@ -169,6 +186,23 @@ module.exports = {
     ],
     splitChunks: {
       chunks: "all",
+      cacheGroups: {
+        vue: {
+          test: /[\\/]node_modules[\\/]vue(.*)?[\\/]/,
+          name: "vue-chunk",
+          priority: 40
+        },
+        "element-plus": {
+          test: /[\\/]node_modules[\\/]element-plus[\\/]/,
+          name: "element-plus-chunk",
+          priority: 30
+        },
+        libs: {
+          test: /[\\/]node_modules[\\/]/,
+          name: "libs-chunk",
+          priority: 20
+        },
+      }
     },
     runtimeChunk: {
       name: (entrypoint) => `runtime~${entrypoint.name}`,
@@ -176,6 +210,10 @@ module.exports = {
   },
   resolve: {
     extensions: [".vue", ".js", ".json"],
+
+    alias: {
+      '@': path.resolve(__dirname, '../src')
+    }
   },
   mode: isProduction ? "production" : "development",
   devtool: isProduction ? "source-map" : 'cheap-module-source-map',
